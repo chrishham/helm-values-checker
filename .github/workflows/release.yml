@@ -16,23 +16,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Update plugin.yaml version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version: .*/version: \"${VERSION}\"/" plugin.yaml
-
-      - name: Commit version bump to main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          git checkout "${GITHUB_REF_NAME}" -- plugin.yaml
-          git add plugin.yaml
-          git diff --cached --quiet && exit 0
-          git commit -m "Bump plugin.yaml version to ${GITHUB_REF_NAME#v}"
-          git push origin main
-          git checkout "${GITHUB_REF_NAME}"
-
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
