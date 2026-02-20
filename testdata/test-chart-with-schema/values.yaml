@@ -1,0 +1,13 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: latest
+
+auth:
+  username: ""
+  password: ""
+
+oldSetting: ""
+
+maxRetries: null

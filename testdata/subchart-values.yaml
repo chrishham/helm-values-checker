@@ -1,0 +1,9 @@
+replicaCount: 1
+
+mysubchart:
+  enabled: true
+  replicas: 2
+  image:
+    repository: myredis
+    tag: "7.0"
+  unknownSubKey: true

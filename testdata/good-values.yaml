@@ -1,0 +1,10 @@
+replicaCount: 2
+
+image:
+  repository: myapp
+  tag: "v1.0.0"
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 8080

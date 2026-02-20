@@ -1,0 +1,15 @@
+replicaCount: "three"
+
+image:
+  regsitry: docker.io
+  repository: myapp
+  tag: "v1.0.0"
+
+service:
+  tyep: LoadBalancer
+  port: 8080
+
+unknownKey: true
+
+persistence:
+  enabled: "yes"

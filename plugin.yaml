@@ -1,0 +1,11 @@
+name: "values-checker"
+version: "0.1.0"
+usage: "Validate Helm values files against chart defaults and schema"
+description: |-
+  Detects unknown keys, type mismatches, missing required fields, and
+  deprecated keys by comparing your values file against a chart's
+  default values.yaml and optional values.schema.json.
+command: "$HELM_PLUGIN_DIR/bin/helm-values-checker"
+hooks:
+  install: "$HELM_PLUGIN_DIR/install-binary.sh"
+  update: "$HELM_PLUGIN_DIR/install-binary.sh"

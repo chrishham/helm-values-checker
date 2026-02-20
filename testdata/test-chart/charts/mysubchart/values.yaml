@@ -1,0 +1,5 @@
+enabled: true
+replicas: 1
+image:
+  repository: redis
+  tag: latest

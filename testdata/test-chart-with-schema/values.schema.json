@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["auth"],
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["username", "password"],
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "oldSetting": {
+      "type": "string",
+      "deprecated": true,
+      "description": "use newSetting instead"
+    },
+    "extraConfig": {
+      "type": "object",
+      "description": "Schema-only key not in defaults"
+    },
+    "maxRetries": {
+      "type": ["integer", "null"],
+      "description": "Maximum retry count"
+    }
+  }
+}

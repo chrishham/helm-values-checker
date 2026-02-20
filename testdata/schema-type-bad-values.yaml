@@ -1,0 +1,11 @@
+replicaCount: 1
+
+image:
+  repository: myapp
+  tag: "v1.0.0"
+
+auth:
+  username: "admin"
+  password: "secret"
+
+maxRetries: "not-a-number"

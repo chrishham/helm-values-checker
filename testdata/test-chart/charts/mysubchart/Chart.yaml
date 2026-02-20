@@ -1,0 +1,4 @@
+apiVersion: v2
+name: mysubchart
+version: 1.0.0
+description: A test subchart
