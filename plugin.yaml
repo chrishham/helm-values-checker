@@ -1,6 +1,6 @@
 apiVersion: v1
 name: "values-checker"
-version: "0.3.3"
+version: "0.4.0"
 type: cli/v1
 runtime: subprocess
 sourceURL: "https://github.com/chrishham/helm-values-checker"
