@@ -66,38 +66,77 @@ func walkSchemaTypes(schema map[string]interface{}, path string, types SchemaTyp
 	}
 }
 
+// containsExternalRef recursively walks a parsed JSON structure looking for
+// any "$ref" key whose value is not a fragment-only reference (starting with "#").
+// Returns the offending ref string if found, or empty string if all refs are safe.
+func containsExternalRef(v interface{}) string {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, child := range val {
+			if k == "$ref" {
+				if s, ok := child.(string); ok && !strings.HasPrefix(s, "#") {
+					return s
+				}
+			}
+			if found := containsExternalRef(child); found != "" {
+				return found
+			}
+		}
+	case []interface{}:
+		for _, item := range val {
+			if found := containsExternalRef(item); found != "" {
+				return found
+			}
+		}
+	}
+	return ""
+}
+
 // validateSchema runs JSON Schema validation on user values, checking
 // required fields and deprecated markers. When schemaTypes is non-nil,
 // invalid_type errors are filtered out because the custom type checker
 // handles those with better messages.
-func validateSchema(userNode *yaml.Node, schemaBytes []byte, ignoreKeys []string, schemaTypes SchemaTypeMap) []model.Finding {
+func validateSchema(userNode *yaml.Node, schemaBytes []byte, ignoreKeys []string, schemaTypes SchemaTypeMap) ([]model.Finding, error) {
 	var findings []model.Finding
 
 	if len(schemaBytes) == 0 {
-		return findings
+		return findings, nil
+	}
+
+	// Check for external $ref before processing the schema
+	var schemaMap interface{}
+	if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
+		return nil, fmt.Errorf("parsing JSON schema: %w", err)
+	}
+	if ref := containsExternalRef(schemaMap); ref != "" {
+		findings = append(findings, model.Finding{
+			Severity: model.SeverityError,
+			Message:  fmt.Sprintf("Schema contains external $ref %q which is not allowed for security reasons", ref),
+		})
+		return findings, nil
 	}
 
 	// Convert user yaml.Node tree to a generic map for JSON schema validation
 	var userMap interface{}
 	userYAML, err := yaml.Marshal(userNode)
 	if err != nil {
-		return findings
+		return nil, fmt.Errorf("marshaling user YAML: %w", err)
 	}
 	if err := yaml.Unmarshal(userYAML, &userMap); err != nil {
-		return findings
+		return nil, fmt.Errorf("unmarshaling user YAML: %w", err)
 	}
 
 	// JSON Schema validation for required fields
 	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
 	userJSON, err := json.Marshal(userMap)
 	if err != nil {
-		return findings
+		return nil, fmt.Errorf("marshaling user values to JSON: %w", err)
 	}
 	docLoader := gojsonschema.NewBytesLoader(userJSON)
 
 	result, err := gojsonschema.Validate(schemaLoader, docLoader)
 	if err != nil {
-		return findings
+		return nil, fmt.Errorf("JSON schema validation: %w", err)
 	}
 
 	for _, e := range result.Errors() {
@@ -131,7 +170,7 @@ func validateSchema(userNode *yaml.Node, schemaBytes []byte, ignoreKeys []string
 	// Check for deprecated keys
 	findings = append(findings, checkDeprecated(userNode, schemaBytes, ignoreKeys)...)
 
-	return findings
+	return findings, nil
 }
 
 // extractSchemaKeys extracts all property paths defined in a JSON schema.

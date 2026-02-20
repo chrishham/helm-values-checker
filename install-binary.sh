@@ -31,7 +31,7 @@ esac
 if [ -n "${HELM_VALUES_CHECKER_VERSION:-}" ]; then
   VERSION="$HELM_VALUES_CHECKER_VERSION"
 else
-  VERSION=$(curl -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+  VERSION=$(curl -fSL -s "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
   if [ -z "$VERSION" ]; then
     echo "Error: Could not determine latest version"
     exit 1
@@ -39,13 +39,35 @@ else
 fi
 
 BINARY="${PROJECT_NAME}_${VERSION#v}_${OS}_${ARCH}.tar.gz"
-DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/${BINARY}"
+CHECKSUMS="checksums.txt"
+BASE_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}"
 
 echo "Downloading ${PROJECT_NAME} ${VERSION} for ${OS}/${ARCH}..."
 
-mkdir -p "${PLUGIN_DIR}/bin"
+# Create temp directory for downloads; clean up on exit
+TMPDIR_DL="$(mktemp -d)"
+trap 'rm -rf "${TMPDIR_DL}"' EXIT
 
-curl -sSL "${DOWNLOAD_URL}" | tar xz -C "${PLUGIN_DIR}/bin" "${PROJECT_NAME}"
+# Download tarball and checksums
+curl -fSL -o "${TMPDIR_DL}/${BINARY}" "${BASE_URL}/${BINARY}"
+curl -fSL -o "${TMPDIR_DL}/${CHECKSUMS}" "${BASE_URL}/${CHECKSUMS}"
+
+# Verify checksum
+echo "Verifying checksum..."
+cd "${TMPDIR_DL}"
+if command -v sha256sum >/dev/null 2>&1; then
+  grep "${BINARY}" "${CHECKSUMS}" | sha256sum --check --strict --quiet
+elif command -v shasum >/dev/null 2>&1; then
+  grep "${BINARY}" "${CHECKSUMS}" | shasum -a 256 --check --quiet
+else
+  echo "Error: neither sha256sum nor shasum found; cannot verify checksum"
+  exit 1
+fi
+cd - >/dev/null
+
+# Extract and install
+mkdir -p "${PLUGIN_DIR}/bin"
+tar xz -C "${PLUGIN_DIR}/bin" -f "${TMPDIR_DL}/${BINARY}" "${PROJECT_NAME}"
 chmod +x "${PLUGIN_DIR}/bin/${PROJECT_NAME}"
 
 echo "${PROJECT_NAME} ${VERSION} installed successfully"

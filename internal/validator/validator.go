@@ -9,8 +9,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// maxValuesFileSize is the maximum allowed size for a values file (10 MB).
+const maxValuesFileSize = 10 * 1024 * 1024
+
 // Validate runs all validation checks on a values file against the resolved chart.
 func Validate(valuesFile string, resolved *chart.ResolvedChart, ignoreKeys []string) (*model.ValidationResult, error) {
+	fi, err := os.Stat(valuesFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading values file %s: %w", valuesFile, err)
+	}
+	if fi.Size() > maxValuesFileSize {
+		return nil, fmt.Errorf("values file %s is too large (%d bytes, max %d)", valuesFile, fi.Size(), maxValuesFileSize)
+	}
+
 	data, err := os.ReadFile(valuesFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading values file %s: %w", valuesFile, err)
@@ -56,8 +67,11 @@ func Validate(valuesFile string, resolved *chart.ResolvedChart, ignoreKeys []str
 		detectTypeMismatches(userNode, resolved.DefaultsNode, ignoreKeys, "", schemaTypes)...)
 
 	// 3. Schema validation (required fields + deprecated keys; type errors filtered when custom checker handles them)
-	result.Findings = append(result.Findings,
-		validateSchema(userNode, resolved.SchemaBytes, ignoreKeys, schemaTypes)...)
+	schemaFindings, err := validateSchema(userNode, resolved.SchemaBytes, ignoreKeys, schemaTypes)
+	if err != nil {
+		return nil, fmt.Errorf("schema validation for %s: %w", valuesFile, err)
+	}
+	result.Findings = append(result.Findings, schemaFindings...)
 
 	return result, nil
 }

@@ -1,8 +1,10 @@
 package validator
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/chrishham/helm-values-checker/internal/chart"
@@ -151,5 +153,36 @@ func TestValidate_SchemaTypeFallback(t *testing.T) {
 	}
 	if typeErrorCount > 1 {
 		t.Errorf("expected exactly 1 error for 'maxRetries', got %d (duplicate type errors not filtered)", typeErrorCount)
+	}
+}
+
+func TestValidate_FileSizeLimit(t *testing.T) {
+	// Create a temp file that exceeds the size limit
+	tmpFile, err := os.CreateTemp(t.TempDir(), "oversized-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer tmpFile.Close()
+
+	// Write just over maxValuesFileSize bytes
+	content := "key: " + strings.Repeat("x", maxValuesFileSize+1) + "\n"
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	chartPath := filepath.Join(testdataDir(), "test-chart")
+	resolved, err := chart.Resolve(chartPath, "")
+	if err != nil {
+		t.Fatalf("failed to resolve chart: %v", err)
+	}
+	defer resolved.Cleanup()
+
+	_, err = Validate(tmpFile.Name(), resolved, nil)
+	if err == nil {
+		t.Fatal("expected error for oversized file, got nil")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("expected 'too large' error, got: %v", err)
 	}
 }

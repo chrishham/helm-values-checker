@@ -11,7 +11,7 @@ Helm's built-in validation only works if the chart ships a `values.schema.json` 
 ### As a Helm plugin
 
 ```bash
-helm plugin install https://github.com/chrishham/helm-values-checker
+helm plugin install --verify=false https://github.com/chrishham/helm-values-checker
 ```
 
 ### From source

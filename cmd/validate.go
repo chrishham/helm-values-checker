@@ -11,6 +11,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ExitError is returned from runValidate to signal a non-zero exit code
+// without calling os.Exit directly, ensuring deferred cleanups run.
+type ExitError struct {
+	Code int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("exit code %d", e.Code)
+}
+
 var (
 	valuesFiles []string
 	chartRef    string
@@ -58,7 +68,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	resolved, err := chart.Resolve(chartRef, chartVersion)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(3)
+		return &ExitError{Code: 3}
 	}
 	defer resolved.Cleanup()
 
@@ -68,7 +78,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		result, err := validator.Validate(vf, resolved, ignoreKeys)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error validating %s: %v\n", vf, err)
-			os.Exit(3)
+			return &ExitError{Code: 3}
 		}
 
 		switch outputFormat {
@@ -76,7 +86,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			data, err := json.MarshalIndent(output.ToJSON(result), "", "  ")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
-				os.Exit(3)
+				return &ExitError{Code: 3}
 			}
 			fmt.Println(string(data))
 		default:
@@ -91,7 +101,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	if exitCode != 0 {
-		os.Exit(exitCode)
+		return &ExitError{Code: exitCode}
 	}
 	return nil
 }
