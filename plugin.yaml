@@ -1,13 +1,54 @@
 apiVersion: v1
 name: "values-checker"
 version: "0.3.3"
-usage: "Validate Helm values files against chart defaults and schema"
-source: "https://github.com/chrishham/helm-values-checker"
-description: |-
-  Detects unknown keys, type mismatches, missing required fields, and
-  deprecated keys by comparing your values file against a chart's
-  default values.yaml and optional values.schema.json.
-command: "$HELM_PLUGIN_DIR/bin/helm-values-checker"
-hooks:
-  install: "$HELM_PLUGIN_DIR/install-binary.sh"
-  update: "$HELM_PLUGIN_DIR/install-binary.sh"
+type: cli/v1
+runtime: subprocess
+sourceURL: "https://github.com/chrishham/helm-values-checker"
+config:
+  usage: "values-checker validate -f <values-file> [--chart <chart-ref>] [flags]"
+  shortHelp: "Validate Helm values files against chart defaults and schema"
+  longHelp: |-
+    Detects unknown keys, type mismatches, missing required fields, and
+    deprecated keys by comparing your values file against a chart's
+    default values.yaml and optional values.schema.json.
+runtimeConfig:
+  platformCommand:
+    - os: linux
+      arch: ""
+      command: "$HELM_PLUGIN_DIR/bin/helm-values-checker"
+      args: []
+    - os: darwin
+      arch: ""
+      command: "$HELM_PLUGIN_DIR/bin/helm-values-checker"
+      args: []
+    - os: windows
+      arch: ""
+      command: "$HELM_PLUGIN_DIR/bin/helm-values-checker.exe"
+      args: []
+  platformHooks:
+    install:
+      - os: linux
+        arch: ""
+        command: "sh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
+      - os: darwin
+        arch: ""
+        command: "sh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
+      - os: windows
+        arch: ""
+        command: "pwsh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
+    update:
+      - os: linux
+        arch: ""
+        command: "sh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
+      - os: darwin
+        arch: ""
+        command: "sh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
+      - os: windows
+        arch: ""
+        command: "pwsh"
+        args: ["-c", "$HELM_PLUGIN_DIR/install-binary.sh"]
