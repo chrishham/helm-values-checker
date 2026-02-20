@@ -46,6 +46,11 @@ helm values-checker validate -f my-values.yaml --chart bitnami/postgresql --igno
 
 You must have run `helm repo add` / `helm repo update` beforehand for remote charts.
 
+## Security Notes
+
+- This plugin does **not** talk to your Kubernetes cluster; it only reads local files and pulls charts using your local Helm repo/OCI credentials/config.
+- If chart pulling fails, set `HELM_VALUES_CHECKER_DEBUG=1` to include **redacted** Helm downloader output in the error message (useful for diagnosing auth/URL issues).
+
 ## Validation Checks
 
 | Check | Severity | Description |

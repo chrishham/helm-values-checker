@@ -2,25 +2,34 @@ package chart
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/action"
+	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
-	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/downloader"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/registry"
 )
 
 // ResolvedChart holds a loaded chart with its parsed default values tree.
 type ResolvedChart struct {
-	Chart         *chart.Chart
-	DefaultsNode  *yaml.Node       // yaml.Node tree of values.yaml
-	SchemaBytes   []byte           // raw values.schema.json, nil if absent
+	Chart            *chart.Chart
+	DefaultsNode     *yaml.Node            // yaml.Node tree of values.yaml
+	SchemaBytes      []byte                // raw values.schema.json, nil if absent
 	SubchartDefaults map[string]*yaml.Node // dependency name -> defaults node
-	tempDir       string           // set if we pulled a remote chart
+	tempDir          string                // set if we pulled a remote chart
 }
+
+var (
+	urlCredsRE = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)([^/\s@]+)@`)
+	secretQSRE = regexp.MustCompile(`(?i)(\b(access_token|token|password|passwd|pwd|secret|apikey|api_key)\b=)([^&\s]+)`)
+)
 
 // Cleanup removes any temporary files created during chart resolution.
 func (r *ResolvedChart) Cleanup() {
@@ -72,53 +81,61 @@ func resolveRemote(chartRef, version string) (*ResolvedChart, error) {
 		return nil, fmt.Errorf("creating temp dir: %w", err)
 	}
 
-	cfg := new(action.Configuration)
-	if err := cfg.Init(settings.RESTClientGetter(), "", "", func(format string, v ...interface{}) {}); err != nil {
-		os.RemoveAll(tmpDir)
-		return nil, fmt.Errorf("initializing helm config: %w", err)
-	}
-
-	pull := action.NewPullWithOpts(action.WithConfig(cfg))
-	pull.Settings = settings
-	pull.DestDir = tmpDir
-	pull.Untar = true
-	pull.UntarDir = tmpDir
-	if version != "" {
-		pull.Version = version
-	}
-
-	output, err := pull.Run(chartRef)
+	regClient, err := registry.NewClient(registry.ClientOptDebug(debugEnabled()), registry.ClientOptWriter(io.Discard))
 	if err != nil {
 		os.RemoveAll(tmpDir)
-		return nil, fmt.Errorf("pulling chart %s: %w\n%s", chartRef, err, output)
+		return nil, fmt.Errorf("initializing helm registry client: %w", err)
 	}
 
-	// Find the extracted chart directory
-	entries, err := os.ReadDir(tmpDir)
+	var out strings.Builder
+	opts := []getter.Option{}
+	if registry.IsOCI(chartRef) {
+		opts = append(opts, getter.WithRegistryClient(regClient))
+	}
+
+	dl := downloader.ChartDownloader{
+		Out:              &out,
+		Verify:           downloader.VerifyNever,
+		Getters:          getter.All(settings),
+		Options:          opts,
+		RegistryClient:   regClient,
+		RepositoryConfig: settings.RepositoryConfig,
+		RepositoryCache:  settings.RepositoryCache,
+	}
+
+	saved, _, err := dl.DownloadTo(chartRef, version, tmpDir)
 	if err != nil {
 		os.RemoveAll(tmpDir)
-		return nil, fmt.Errorf("reading temp dir: %w", err)
-	}
-
-	var chartDir string
-	for _, e := range entries {
-		if e.IsDir() {
-			chartDir = filepath.Join(tmpDir, e.Name())
-			break
+		// Downloader output can contain URLs and other user-specific details (including credentials in rare cases).
+		// Only include a redacted version when explicitly debugging.
+		if debugEnabled() && strings.TrimSpace(out.String()) != "" {
+			return nil, fmt.Errorf("pulling chart %s: %w\n%s", chartRef, err, redactSensitive(out.String()))
 		}
-	}
-	if chartDir == "" {
-		os.RemoveAll(tmpDir)
-		return nil, fmt.Errorf("no chart directory found after pulling %s", chartRef)
+		return nil, fmt.Errorf("pulling chart %s: %w", chartRef, err)
 	}
 
-	ch, err := loader.Load(chartDir)
+	ch, err := loader.Load(saved)
 	if err != nil {
 		os.RemoveAll(tmpDir)
 		return nil, fmt.Errorf("loading pulled chart: %w", err)
 	}
 
 	return buildResolved(ch, tmpDir)
+}
+
+func debugEnabled() bool {
+	v := strings.TrimSpace(os.Getenv("HELM_VALUES_CHECKER_DEBUG"))
+	return v != "" && v != "0" && strings.ToLower(v) != "false"
+}
+
+func redactSensitive(s string) string {
+	const maxLen = 2000
+	redacted := urlCredsRE.ReplaceAllString(s, "${1}REDACTED@")
+	redacted = secretQSRE.ReplaceAllString(redacted, "${1}REDACTED")
+	if len(redacted) > maxLen {
+		return redacted[:maxLen] + "\n... (truncated)"
+	}
+	return redacted
 }
 
 func buildResolved(ch *chart.Chart, tempDir string) (*ResolvedChart, error) {
