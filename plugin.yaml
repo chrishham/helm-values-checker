@@ -1,6 +1,8 @@
+apiVersion: v1
 name: "values-checker"
 version: "0.3.3"
 usage: "Validate Helm values files against chart defaults and schema"
+source: "https://github.com/chrishham/helm-values-checker"
 description: |-
   Detects unknown keys, type mismatches, missing required fields, and
   deprecated keys by comparing your values file against a chart's
