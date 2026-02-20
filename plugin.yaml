@@ -1,5 +1,5 @@
 name: "values-checker"
-version: "0.3.1"
+version: "0.3.3"
 usage: "Validate Helm values files against chart defaults and schema"
 description: |-
   Detects unknown keys, type mismatches, missing required fields, and
