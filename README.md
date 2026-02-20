@@ -80,6 +80,16 @@ Summary: 3 errors, 1 warning
 | 2 | Warnings found (only with `--strict`) |
 | 3 | Tool error (bad flags, chart not found) |
 
+## Releasing
+
+To create a new release, use the included release script:
+
+```bash
+./scripts/release.sh 0.4.0
+```
+
+This bumps the version in `plugin.yaml`, commits, tags, and pushes. The GitHub Actions release workflow then builds and publishes the binaries automatically.
+
 ## Edge Cases
 
 - **Subcharts**: Keys matching a dependency name are validated against that subchart's defaults
