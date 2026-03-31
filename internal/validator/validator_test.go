@@ -51,23 +51,35 @@ func TestValidate_BadValues(t *testing.T) {
 		t.Fatal("expected errors for bad values, got none")
 	}
 
-	// Should find: image.regsitry (unknown), service.tyep (unknown),
-	// unknownKey (unknown), replicaCount type mismatch, persistence.enabled type mismatch
-	foundUnknown := false
+	// Should find: unknownKey (unknown, top-level error), replicaCount type mismatch,
+	// persistence.enabled type mismatch.
+	// image.regsitry and service.tyep are nested unknowns → warnings, not errors.
+	foundTopLevelUnknown := false
 	foundTypeMismatch := false
 	for _, f := range errors {
-		if f.KeyPath == "image.regsitry" {
-			foundUnknown = true
+		if f.KeyPath == "unknownKey" {
+			foundTopLevelUnknown = true
 		}
 		if f.KeyPath == "replicaCount" {
 			foundTypeMismatch = true
 		}
 	}
-	if !foundUnknown {
-		t.Error("expected to find unknown key 'image.regsitry'")
+	if !foundTopLevelUnknown {
+		t.Error("expected to find error for top-level unknown key 'unknownKey'")
 	}
 	if !foundTypeMismatch {
 		t.Error("expected to find type mismatch for 'replicaCount'")
+	}
+
+	// Nested unknown keys should be warnings
+	foundNestedWarning := false
+	for _, f := range result.Warnings() {
+		if f.KeyPath == "image.regsitry" {
+			foundNestedWarning = true
+		}
+	}
+	if !foundNestedWarning {
+		t.Error("expected to find warning for nested unknown key 'image.regsitry'")
 	}
 }
 
@@ -84,14 +96,15 @@ func TestValidate_SubchartValues(t *testing.T) {
 		t.Fatalf("validation error: %v", err)
 	}
 
+	// Nested unknown subchart keys are warnings (not errors)
 	found := false
-	for _, f := range result.Errors() {
+	for _, f := range result.Warnings() {
 		if f.KeyPath == "mysubchart.unknownSubKey" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected error for 'mysubchart.unknownSubKey', findings: %v", result.Findings)
+		t.Errorf("expected warning for 'mysubchart.unknownSubKey', findings: %v", result.Findings)
 	}
 }
 

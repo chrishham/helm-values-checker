@@ -182,8 +182,18 @@ func detectUnknownKeys(userNode, defaultsNode *yaml.Node, schemaKeys map[string]
 				continue
 			}
 
+			// Unknown keys nested inside a known parent mapping are more
+			// likely valid additional config (common in passthrough blocks
+			// like limits_config where charts use toYaml) than completely
+			// wrong keys. Downgrade these to warnings; top-level unknowns
+			// remain errors.
+			severity := model.SeverityError
+			if path != "" {
+				severity = model.SeverityWarning
+			}
+
 			f := model.Finding{
-				Severity: model.SeverityError,
+				Severity: severity,
 				Line:     keyNode.Line,
 				KeyPath:  fullPath,
 				Message:  fmt.Sprintf("Unknown key %q", fullPath),

@@ -3,6 +3,7 @@ package validator
 import (
 	"testing"
 
+	"github.com/chrishham/helm-values-checker/internal/model"
 	"gopkg.in/yaml.v3"
 )
 
@@ -55,17 +56,23 @@ unknownKey: true
 		t.Fatalf("expected 2 findings, got %d: %v", len(findings), findings)
 	}
 
-	// Check first finding is for image.regsitry (with suggestion)
+	// Check first finding is for image.regsitry (with suggestion, warning because nested)
 	if findings[0].KeyPath != "image.regsitry" {
 		t.Errorf("expected keyPath 'image.regsitry', got %q", findings[0].KeyPath)
 	}
 	if findings[0].Suggestion == "" {
 		t.Errorf("expected a suggestion for 'regsitry'")
 	}
+	if findings[0].Severity != model.SeverityWarning {
+		t.Errorf("expected warning severity for nested unknown key, got %v", findings[0].Severity)
+	}
 
-	// Check second finding is for unknownKey
+	// Check second finding is for unknownKey (error because top-level)
 	if findings[1].KeyPath != "unknownKey" {
 		t.Errorf("expected keyPath 'unknownKey', got %q", findings[1].KeyPath)
+	}
+	if findings[1].Severity != model.SeverityError {
+		t.Errorf("expected error severity for top-level unknown key, got %v", findings[1].Severity)
 	}
 }
 
@@ -110,6 +117,9 @@ redis:
 	if findings[0].KeyPath != "redis.unknownSubKey" {
 		t.Errorf("expected keyPath 'redis.unknownSubKey', got %q", findings[0].KeyPath)
 	}
+	if findings[0].Severity != model.SeverityWarning {
+		t.Errorf("expected warning severity for nested subchart unknown key, got %v", findings[0].Severity)
+	}
 }
 
 func TestDetectUnknownKeys_SubchartWithParentOverrides(t *testing.T) {
@@ -146,6 +156,9 @@ grafana:
 	}
 	if findings[0].KeyPath != "grafana.unknownKey" {
 		t.Errorf("expected keyPath 'grafana.unknownKey', got %q", findings[0].KeyPath)
+	}
+	if findings[0].Severity != model.SeverityWarning {
+		t.Errorf("expected warning severity for nested unknown key, got %v", findings[0].Severity)
 	}
 }
 
