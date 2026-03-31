@@ -100,6 +100,34 @@ func findDeepSuggestion(unknownPath string, allPaths map[string]string) string {
 	return ""
 }
 
+// mergeDefaultNodes creates a new mapping node that contains all keys from
+// the primary node plus any additional keys from the secondary node. This is
+// used to combine subchart defaults with parent chart overrides so that keys
+// defined by the parent (e.g., "enabled") are also accepted as valid.
+func mergeDefaultNodes(primary, secondary *yaml.Node) *yaml.Node {
+	if primary == nil {
+		return secondary
+	}
+	if secondary == nil || secondary.Kind != yaml.MappingNode {
+		return primary
+	}
+	if primary.Kind != yaml.MappingNode {
+		return primary
+	}
+
+	merged := &yaml.Node{Kind: yaml.MappingNode}
+	merged.Content = append(merged.Content, primary.Content...)
+
+	primaryKeys := mappingKeys(primary)
+	for i := 0; i+1 < len(secondary.Content); i += 2 {
+		if !primaryKeys[secondary.Content[i].Value] {
+			merged.Content = append(merged.Content, secondary.Content[i], secondary.Content[i+1])
+		}
+	}
+
+	return merged
+}
+
 // detectUnknownKeys walks the user values tree and reports keys not found
 // in the chart defaults tree. allPaths is a pre-computed map of every
 // dot-separated path in the root defaults tree (used for deep suggestions).
@@ -131,9 +159,14 @@ func detectUnknownKeys(userNode, defaultsNode *yaml.Node, schemaKeys map[string]
 		}
 
 		// Check if key is a subchart name — validate against subchart defaults
+		// merged with the parent chart's defaults for this key (the parent
+		// chart may define additional keys such as "enabled" that are valid
+		// overrides but don't exist in the subchart's own values.yaml).
 		if subDefaults, ok := subchartDefaults[key]; ok {
 			if valNode.Kind == yaml.MappingNode {
-				findings = append(findings, detectUnknownKeys(valNode, subDefaults, nil, nil, ignoreKeys, fullPath, allPaths)...)
+				parentVal := getValueForKey(defaultsNode, key)
+				merged := mergeDefaultNodes(subDefaults, parentVal)
+				findings = append(findings, detectUnknownKeys(valNode, merged, nil, nil, ignoreKeys, fullPath, allPaths)...)
 			}
 			continue
 		}

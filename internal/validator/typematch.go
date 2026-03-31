@@ -199,7 +199,11 @@ func detectTypeMismatches(userNode, defaultsNode *yaml.Node, ignoreKeys []string
 }
 
 // checkSequence validates elements in a user sequence against the first element
-// of the default sequence as a template.
+// of the default sequence as a template. Only type mismatches are checked;
+// unknown key detection is skipped because sequence elements are inherently
+// heterogeneous (e.g., different Alertmanager receiver types have different
+// config keys) and using one element as a template for allowed keys produces
+// false positives.
 func checkSequence(userSeq, defaultSeq *yaml.Node, ignoreKeys []string, path string, schemaTypes SchemaTypeMap) []model.Finding {
 	var findings []model.Finding
 
@@ -222,7 +226,6 @@ func checkSequence(userSeq, defaultSeq *yaml.Node, ignoreKeys []string, path str
 		}
 		if elem.Kind == yaml.MappingNode {
 			elemPath := fmt.Sprintf("%s[%d]", path, idx)
-			findings = append(findings, detectUnknownKeys(elem, template, nil, nil, ignoreKeys, elemPath, nil)...)
 			findings = append(findings, detectTypeMismatches(elem, template, ignoreKeys, elemPath, schemaTypes)...)
 		}
 	}

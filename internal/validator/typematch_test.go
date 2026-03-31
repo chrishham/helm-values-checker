@@ -328,3 +328,63 @@ maxRetries: null
 		t.Errorf("expected no findings for user null regardless of schema, got %d: %v", len(findings), findings)
 	}
 }
+
+func TestCheckSequence_NoFalsePositiveForExtraKeys(t *testing.T) {
+	// Sequence elements are heterogeneous — keys not in the template
+	// element should NOT be flagged as unknown. E.g., Alertmanager
+	// receivers: defaults have [{name: "null"}] but user adds
+	// webhook_configs which is perfectly valid.
+	defaults := parseYAML(t, `
+config:
+  receivers:
+  - name: "null"
+  route:
+    routes:
+    - receiver: "null"
+      matchers:
+      - alertname = "Watchdog"
+`)
+	user := parseYAML(t, `
+config:
+  receivers:
+  - name: n8n-webhook
+    webhook_configs:
+    - url: http://example.com/webhook
+      send_resolved: false
+  - name: "null"
+  route:
+    routes:
+    - receiver: n8n-webhook
+      matchers:
+      - alertname =~ "KubePodCrashLooping"
+      repeat_interval: 4h
+`)
+	findings := detectTypeMismatches(user, defaults, nil, "", nil)
+	for _, f := range findings {
+		if f.KeyPath == "config.receivers[0].webhook_configs" {
+			t.Errorf("webhook_configs should not be flagged as unknown in sequence element: %s", f.Message)
+		}
+	}
+}
+
+func TestCheckSequence_StillCatchesTypeMismatches(t *testing.T) {
+	// Type mismatches for keys that exist in both template and user
+	// should still be caught.
+	defaults := parseYAML(t, `
+items:
+- name: default
+  count: 1
+`)
+	user := parseYAML(t, `
+items:
+- name: true
+  count: 1
+`)
+	findings := detectTypeMismatches(user, defaults, nil, "", nil)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for sequence element type mismatch, got %d: %v", len(findings), findings)
+	}
+	if findings[0].KeyPath != "items[0].name" {
+		t.Errorf("expected keyPath 'items[0].name', got %q", findings[0].KeyPath)
+	}
+}

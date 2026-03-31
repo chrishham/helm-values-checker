@@ -112,6 +112,43 @@ redis:
 	}
 }
 
+func TestDetectUnknownKeys_SubchartWithParentOverrides(t *testing.T) {
+	// Parent chart defines "enabled" for the subchart in its own values.yaml
+	// but the subchart's own values.yaml doesn't have "enabled".
+	// Both should be accepted as valid keys.
+	defaults := parseYAML(t, `
+replicaCount: 1
+grafana:
+  enabled: true
+  forceDeployDashboards: false
+`)
+	subDefaults := map[string]*yaml.Node{
+		"grafana": parseYAML(t, `
+replicas: 1
+adminPassword: admin
+`),
+	}
+	user := parseYAML(t, `
+replicaCount: 2
+grafana:
+  enabled: false
+  replicas: 1
+  adminPassword: secret
+  forceDeployDashboards: true
+  unknownKey: true
+`)
+	findings := detectUnknownKeys(user, defaults, nil, subDefaults, nil, "", nil)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding for truly unknown key, got %d:", len(findings))
+		for _, f := range findings {
+			t.Errorf("  - %s: %s", f.KeyPath, f.Message)
+		}
+	}
+	if findings[0].KeyPath != "grafana.unknownKey" {
+		t.Errorf("expected keyPath 'grafana.unknownKey', got %q", findings[0].KeyPath)
+	}
+}
+
 func TestDetectUnknownKeys_EmptyMapDefault(t *testing.T) {
 	defaults := parseYAML(t, `
 podSecurityContext: {}
