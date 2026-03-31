@@ -5,8 +5,9 @@ PROJECT_NAME="helm-values-checker"
 GITHUB_REPO="chrishham/helm-values-checker"
 PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# If a pre-built binary already exists (local dev), skip download
-if [ -x "${PLUGIN_DIR}/bin/${PROJECT_NAME}" ]; then
+# Skip download if binary exists and HELM_PLUGIN_NAME is not set (local dev).
+# When Helm runs this script (install or update), HELM_PLUGIN_NAME is always set.
+if [ -x "${PLUGIN_DIR}/bin/${PROJECT_NAME}" ] && [ -z "${HELM_PLUGIN_NAME:-}" ]; then
   echo "${PROJECT_NAME} binary already exists, skipping download"
   exit 0
 fi
